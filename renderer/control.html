@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Navi</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-role="control">
+  <div id="completion" class="hidden">
+    <div id="completion-check">&#10003;</div>
+    <span id="completion-text">Done!</span>
+  </div>
+
+  <div id="confirm-done" class="panel hidden">
+    <p id="confirm-text">Navi thinks the task is done — looks right?</p>
+    <div id="confirm-buttons">
+      <button id="btn-yes" class="navi-btn">Yes</button>
+      <button id="btn-continue" class="navi-btn secondary">Keep going</button>
+    </div>
+  </div>
+
+  <div id="error-display" class="panel hidden">
+    <span id="error-text"></span>
+    <button id="error-dismiss" class="navi-btn small">OK</button>
+  </div>
+
+  <div id="input-bar" class="panel">
+    <div id="drag-handle" aria-hidden="true">
+      <div id="drag-pill"></div>
+    </div>
+    <div id="chat-header">
+      <div id="chat-title-group">
+        <span id="chat-title">Navi</span>
+      </div>
+      <button id="chat-toggle" class="icon-btn small" title="Expand chat history" aria-label="Expand chat history">
+        <svg id="chat-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      <div id="active-goal" class="hidden">
+        <span id="active-goal-text"></span>
+        <button id="cancel-btn" class="icon-btn small" title="Cancel">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div id="chat-log"></div>
+    <div id="input-container">
+      <input type="text" id="goal-input" placeholder="Ask Navi what you want to do..." autocomplete="off" spellcheck="false">
+      <button id="mic-toggle" class="icon-btn" title="Voice input">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
+      <button id="submit-btn" class="icon-btn" title="Submit">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+node_modules/
+logs/
+.env
+__pycache__/
+*.pyc
+dist/
+out/
+prd.md
+
+.claude/

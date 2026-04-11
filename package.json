@@ -1,0 +1,16 @@
+{
+  "name": "navi",
+  "version": "0.1.0",
+  "description": "AI overlay that shows you where to click instead of clicking for you",
+  "main": "main.js",
+  "scripts": {
+    "dev": "concurrently \"python3 backend/main.py\" \"electron .\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^33.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

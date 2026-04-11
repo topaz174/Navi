@@ -1,0 +1,8 @@
+mss>=9.0.0
+pillow>=10.0.0
+anthropic>=0.42.0
+numpy>=1.26.0
+websockets>=13.0
+python-dotenv>=1.0.0
+sounddevice>=0.4.6
+SpeechRecognition>=3.10.0
