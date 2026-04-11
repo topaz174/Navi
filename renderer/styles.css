@@ -40,6 +40,18 @@ body[data-role="overlay"] #tooltip {
   position: fixed;
 }
 
+body[data-role="confirm"] {
+  background: transparent;
+}
+
+body[data-role="confirm"] #confirm-done {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+}
+
 .hidden {
   display: none !important;
 }
@@ -260,19 +272,20 @@ body[data-role="control"] #loading-panel {
   inset: 0;
   background:
     linear-gradient(90deg,
-      rgba(125, 185, 255, 0.34) 0px,
-      rgba(125, 185, 255, 0.34) 6px,
+      rgba(125, 185, 255, 0.58) 0px,
+      rgba(125, 185, 255, 0.58) 8px,
       rgba(125, 185, 255, 0.00) 6px,
       rgba(125, 185, 255, 0.00) calc(100% - 6px),
-      rgba(125, 185, 255, 0.34) calc(100% - 6px),
-      rgba(125, 185, 255, 0.34) 100%),
+      rgba(125, 185, 255, 0.58) calc(100% - 8px),
+      rgba(125, 185, 255, 0.58) 100%),
     linear-gradient(180deg,
-      rgba(125, 185, 255, 0.38) 0px,
-      rgba(125, 185, 255, 0.38) 6px,
+      rgba(125, 185, 255, 0.62) 0px,
+      rgba(125, 185, 255, 0.62) 8px,
       rgba(125, 185, 255, 0.00) 6px,
       rgba(125, 185, 255, 0.00) calc(100% - 6px),
-      rgba(125, 185, 255, 0.38) calc(100% - 6px),
-      rgba(125, 185, 255, 0.38) 100%);
+      rgba(125, 185, 255, 0.62) calc(100% - 8px),
+      rgba(125, 185, 255, 0.62) 100%),
+    radial-gradient(circle at 50% 50%, rgba(125, 185, 255, 0.18), rgba(125, 185, 255, 0.04) 34%, transparent 58%);
   box-shadow:
     inset 0 0 0 1px rgba(191, 219, 254, 0.46);
   opacity: 0;
@@ -280,22 +293,28 @@ body[data-role="control"] #loading-panel {
 
 body[data-role="overlay"] #loading.active #loading-vignette {
   animation:
-    loading-capture-flash 300ms cubic-bezier(0.22, 0.8, 0.2, 1) 1,
-    loading-border-breathe 2.4s ease-in-out 320ms infinite;
+    loading-capture-flash 640ms cubic-bezier(0.22, 0.8, 0.2, 1) 1,
+    loading-border-breathe 2.4s ease-in-out 680ms infinite;
 }
 
 @keyframes loading-capture-flash {
   0% {
     opacity: 0;
-    box-shadow: inset 0 0 0 1px rgba(191, 219, 254, 0);
+    box-shadow:
+      inset 0 0 0 1px rgba(191, 219, 254, 0),
+      inset 0 0 0 0 rgba(96, 165, 250, 0);
   }
-  24% {
-    opacity: 0.98;
-    box-shadow: inset 0 0 0 1px rgba(219, 234, 254, 0.7);
+  18% {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 0 1px rgba(239, 246, 255, 0.95),
+      inset 0 0 90px rgba(96, 165, 250, 0.22);
   }
   100% {
-    opacity: 0.42;
-    box-shadow: inset 0 0 0 1px rgba(191, 219, 254, 0.36);
+    opacity: 0.46;
+    box-shadow:
+      inset 0 0 0 1px rgba(191, 219, 254, 0.4),
+      inset 0 0 36px rgba(96, 165, 250, 0.1);
   }
 }
 

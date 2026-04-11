@@ -6,6 +6,7 @@ const WS_PORT = 7373;
 
 let overlayWin = null;
 let controlWin = null;
+let confirmWin = null;
 let tray = null;
 let wsConnection = null;
 
@@ -94,6 +95,55 @@ function createControlWindow() {
   });
 }
 
+function createConfirmWindow() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { x, y, width, height } = primaryDisplay.workArea;
+  const popupWidth = 360;
+  const popupHeight = 140;
+
+  confirmWin = new BrowserWindow({
+    width: popupWidth,
+    height: popupHeight,
+    minWidth: popupWidth,
+    minHeight: popupHeight,
+    maxWidth: popupWidth,
+    maxHeight: popupHeight,
+    x: Math.round(x + (width - popupWidth) / 2),
+    y: Math.round(y + (height - popupHeight) / 2),
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    fullscreenable: false,
+    maximizable: false,
+    minimizable: false,
+    hasShadow: false,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+
+  confirmWin.setAlwaysOnTop(true, 'modal-panel');
+  confirmWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  confirmWin.loadFile(path.join(__dirname, 'renderer', 'confirm.html'));
+}
+
+function showConfirmWindow() {
+  if (!confirmWin || confirmWin.isDestroyed()) return;
+  if (!confirmWin.isVisible()) {
+    confirmWin.show();
+  }
+  confirmWin.focus();
+}
+
+function hideConfirmWindow() {
+  if (!confirmWin || confirmWin.isDestroyed()) return;
+  confirmWin.hide();
+}
+
 function configureMediaPermissions() {
   const ses = session.defaultSession;
   ses.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
@@ -145,7 +195,7 @@ function createTray() {
 }
 
 function sendToRenderers(channel, payload) {
-  for (const win of [overlayWin, controlWin]) {
+  for (const win of [overlayWin, controlWin, confirmWin]) {
     if (win && !win.isDestroyed()) {
       win.webContents.send(channel, payload);
     }
@@ -182,6 +232,15 @@ function connectWebSocket() {
     });
 
     ws.on('message', (data) => {
+      try {
+        const parsed = JSON.parse(data.toString());
+        const event = parsed?.event;
+        if (event === 'confirm_done') {
+          showConfirmWindow();
+        } else if (['step', 'loading', 'done', 'error'].includes(event)) {
+          hideConfirmWindow();
+        }
+      } catch {}
       sendToRenderers('ws-message', data.toString());
     });
 
@@ -204,10 +263,17 @@ app.whenReady().then(() => {
   configureMediaPermissions();
   createOverlayWindow();
   createControlWindow();
+  createConfirmWindow();
   createTray();
   connectWebSocket();
 
   ipcMain.on('ws-send', (_event, data) => {
+    try {
+      const parsed = JSON.parse(data);
+      if (['user_confirmed_done', 'user_continue', 'cancel'].includes(parsed?.event)) {
+        hideConfirmWindow();
+      }
+    } catch {}
     if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
       wsConnection.send(data);
     }
@@ -228,6 +294,9 @@ app.on('before-quit', () => {
   }
   if (overlayWin) {
     overlayWin.close();
+  }
+  if (confirmWin) {
+    confirmWin.close();
   }
 });
 
