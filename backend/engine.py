@@ -9,6 +9,7 @@ from backend.api import (
     planning_call,
     validation_call,
 )
+from backend.click_monitor import ClickMonitor
 from backend.diff_monitor import DiffMonitor
 from backend.perf_log import PerfSession
 from backend.screenshot import capture_and_encode, capture_raw_array, capture_with_overlay_hidden
@@ -25,6 +26,8 @@ WAITING_FOR_CHANGE = "WAITING_FOR_CHANGE"
 VALIDATING = "VALIDATING"
 GOAL_CHECK = "GOAL_CHECK"
 DONE = "DONE"
+
+CLICK_ACTIONS = {"click", "left_click", "right_click", "middle_click", "double_click"}
 
 
 class NaviEngine:
@@ -45,6 +48,7 @@ class NaviEngine:
         self._scaled_h = 0
         self._messages: list = []
         self._diff_monitor: DiffMonitor | None = None
+        self._click_monitor: ClickMonitor | None = None
         self._cancelled = False
         self._last_claude_call_time = 0.0
         self._perf: PerfSession | None = None
@@ -74,6 +78,8 @@ class NaviEngine:
         self._cancelled = True
         if self._diff_monitor:
             self._diff_monitor.stop()
+        if self._click_monitor:
+            self._click_monitor.stop()
         self._state = IDLE
 
     async def handle_user_confirmed_done(self):
@@ -282,10 +288,42 @@ class NaviEngine:
         """Start diff monitor — it will call back when screen settles."""
         if self._diff_monitor:
             self._diff_monitor.stop()
+        if self._click_monitor:
+            self._click_monitor.stop()
 
         wait_file = f"05_waiting_after_step_{self._current_step:02d}_displayed.txt"
         if self._perf:
             self._perf.event(wait_file, f"state WAITING_FOR_CHANGE: start DiffMonitor (instruction step {self._current_step})")
+        focus_rect = {
+            "left": self._display_left if self._display_left is not None else max(0, self._display_x - self._display_w / 2),
+            "top": self._display_top if self._display_top is not None else max(0, self._display_y - self._display_h / 2),
+            "width": self._display_w,
+            "height": self._display_h,
+        } if self._display_w is not None and self._display_h is not None and (self._display_left is not None or self._display_x is not None) and (self._display_top is not None or self._display_y is not None) else None
+
+        if self._display_action_type in CLICK_ACTIONS and focus_rect is not None:
+            if self._perf:
+                self._perf.event(
+                    wait_file,
+                    f"state WAITING_FOR_CHANGE: start ClickMonitor (step {self._current_step})",
+                    action_type=self._display_action_type,
+                )
+            self._click_monitor = ClickMonitor(
+                focus_rect=focus_rect,
+                on_click_inside=self._on_target_clicked,
+                on_idle_timeout=self._on_idle_timeout,
+                perf_session=self._perf,
+                perf_log_file=wait_file,
+            )
+            self._click_monitor.start()
+            return
+
+        if self._perf:
+            self._perf.event(
+                wait_file,
+                "state WAITING_FOR_CHANGE: start DiffMonitor fallback",
+                action_type=self._display_action_type,
+            )
         self._diff_monitor = DiffMonitor(
             capture_fn=capture_raw_array,
             on_settled=self._on_screen_settled,
@@ -294,15 +332,20 @@ class NaviEngine:
             last_claude_call_time=self._last_claude_call_time,
             perf_session=self._perf,
             perf_log_file=wait_file,
-            focus_rect={
-                "left": self._display_left if self._display_left is not None else max(0, self._display_x - self._display_w / 2),
-                "top": self._display_top if self._display_top is not None else max(0, self._display_y - self._display_h / 2),
-                "width": self._display_w,
-                "height": self._display_h,
-            } if self._display_w is not None and self._display_h is not None and (self._display_left is not None or self._display_x is not None) and (self._display_top is not None or self._display_y is not None) else None,
+            focus_rect=focus_rect,
             logical_size=(self._logical_w, self._logical_h),
         )
         self._diff_monitor.start()
+
+    async def _on_target_clicked(self):
+        """Called by ClickMonitor when the user clicks inside the target rect."""
+        if self._cancelled:
+            return
+        if self._maybe_auto_advance_without_validation():
+            return
+        if self._perf:
+            self._perf.event("00_timeline.txt", "_on_target_clicked: scheduling VALIDATING")
+        asyncio.ensure_future(self._transition(VALIDATING))
 
     async def _on_screen_settled(self, settled_frame):
         """Called by DiffMonitor when the screen has changed and settled."""
@@ -371,6 +414,10 @@ class NaviEngine:
             if self._perf:
                 self._perf.event(vf, "DiffMonitor.stop()")
             self._diff_monitor.stop()
+        if self._click_monitor:
+            if self._perf:
+                self._perf.event(vf, "ClickMonitor.stop()")
+            self._click_monitor.stop()
 
         # Hide overlay so Claude gets a clean view of the user's screen.
         b64, sw, sh, scale = await capture_with_overlay_hidden(

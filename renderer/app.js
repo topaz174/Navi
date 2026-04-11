@@ -10,6 +10,8 @@ const tooltipText = document.getElementById('tooltip-text');
 const stepHud = document.getElementById('step-hud');
 const stepCounter = document.getElementById('step-counter');
 const stepHistory = document.getElementById('step-history');
+const stepAdvance = document.getElementById('step-advance');
+const stepAdvanceText = document.getElementById('step-advance-text');
 const loading = document.getElementById('loading');
 const loadingScanner = document.getElementById('loading-scanner');
 const completion = document.getElementById('completion');
@@ -36,6 +38,8 @@ let thinkingEntry = null;
 let chatExpanded = false;
 let lastInstruction = '';
 let pendingLoadingHide = null;
+let pendingStepRender = null;
+let currentStepNum = 0;
 
 function wsSend(event, payload = {}) {
   const msg = JSON.stringify({ event, payload });
@@ -136,6 +140,54 @@ function renderStepHistory() {
   ).join('');
 }
 
+function clearPendingStepRender() {
+  if (pendingStepRender) {
+    clearTimeout(pendingStepRender);
+    pendingStepRender = null;
+  }
+}
+
+function flashStepAdvance(text, duration = 820) {
+  if (!stepAdvance || !stepAdvanceText || !text) return;
+  stepAdvanceText.textContent = text;
+  stepAdvance.classList.remove('hidden', 'animate');
+  stepAdvance.offsetHeight;
+  stepAdvance.classList.add('animate');
+  window.setTimeout(() => {
+    stepAdvance.classList.add('hidden');
+    stepAdvance.classList.remove('animate');
+  }, duration);
+}
+
+function renderOverlayStep(screenBx, screenBy, x, y, w, h, instruction) {
+  if (!(isOverlayWindow && boundingBox && tooltip && tooltipText)) return;
+
+  const bx = screenBx - (overlayBounds.x || 0);
+  const by = screenBy - (overlayBounds.y || 0);
+  const anchorX = (Number.isFinite(x) ? x : screenBx + w / 2) - (overlayBounds.x || 0);
+
+  boundingBox.style.left = `${bx}px`;
+  boundingBox.style.top = `${by}px`;
+  boundingBox.style.width = `${w}px`;
+  boundingBox.style.height = `${h}px`;
+  boundingBox.classList.remove('transitioning');
+  setHidden(boundingBox, false);
+
+  boundingBox.style.animation = 'none';
+  boundingBox.offsetHeight;
+  boundingBox.style.animation = '';
+
+  tooltipText.textContent = instruction;
+  setHidden(tooltip, false);
+
+  const tooltipHeight = 50;
+  const gap = 10;
+  tooltip.style.top = by > tooltipHeight + gap + 20
+    ? `${by - tooltipHeight - gap}px`
+    : `${by + h + gap}px`;
+  tooltip.style.left = `${Math.max(8, anchorX - 200)}px`;
+}
+
 function showStep(payload) {
   const { instruction, x, y, left, top, w, h, step_num, total_steps } = payload;
 
@@ -161,30 +213,17 @@ function showStep(payload) {
     });
   }
 
-  if (isOverlayWindow && boundingBox && tooltip && tooltipText) {
-    const bx = screenBx - (overlayBounds.x || 0);
-    const by = screenBy - (overlayBounds.y || 0);
-    const anchorX = (Number.isFinite(x) ? x : screenBx + w / 2) - (overlayBounds.x || 0);
-
-    boundingBox.style.left = `${bx}px`;
-    boundingBox.style.top = `${by}px`;
-    boundingBox.style.width = `${w}px`;
-    boundingBox.style.height = `${h}px`;
-    setHidden(boundingBox, false);
-
-    boundingBox.style.animation = 'none';
-    boundingBox.offsetHeight;
-    boundingBox.style.animation = '';
-
-    tooltipText.textContent = instruction;
-    setHidden(tooltip, false);
-
-    const tooltipHeight = 50;
-    const gap = 10;
-    tooltip.style.top = by > tooltipHeight + gap + 20
-      ? `${by - tooltipHeight - gap}px`
-      : `${by + h + gap}px`;
-    tooltip.style.left = `${Math.max(8, anchorX - 200)}px`;
+  clearPendingStepRender();
+  if (isOverlayWindow && step_num > 1) {
+    flashStepAdvance(`Step ${step_num} of ${total_steps}`);
+    if (boundingBox) boundingBox.classList.add('transitioning');
+    if (tooltip) tooltip.classList.add('hidden');
+    pendingStepRender = setTimeout(() => {
+      renderOverlayStep(screenBx, screenBy, x, y, w, h, instruction);
+      pendingStepRender = null;
+    }, 170);
+  } else {
+    renderOverlayStep(screenBx, screenBy, x, y, w, h, instruction);
   }
 
   if (stepCounter) {
@@ -195,6 +234,7 @@ function showStep(payload) {
   renderStepHistory();
   removeThinkingEntry();
   appendChatEntry('assistant', `Step ${step_num} of ${total_steps}: ${instruction}`);
+  currentStepNum = step_num;
 
   setHidden(confirmDone, true);
   setHidden(completion, true);
@@ -208,6 +248,18 @@ function toggleLoading(active) {
     if (active) {
       resetScannerRoam();
       setHidden(loading, false);
+      if (isOverlayWindow && currentStepNum > 0) {
+        if (boundingBox && !boundingBox.classList.contains('hidden')) {
+          boundingBox.classList.add('transitioning');
+          window.setTimeout(() => {
+            setHidden(boundingBox, true);
+          }, 130);
+        }
+        if (tooltip) {
+          setHidden(tooltip, true);
+        }
+        flashStepAdvance('Step complete', 900);
+      }
     } else if (isOverlayWindow && loadingScanner) {
       pendingLoadingHide = setTimeout(() => {
         setHidden(loading, true);
@@ -287,15 +339,18 @@ function submitGoal() {
 }
 
 function resetToIdle() {
+  clearPendingStepRender();
   setHidden(activeGoal, true);
   setHidden(boundingBox, true);
   setHidden(tooltip, true);
+  setHidden(stepAdvance, true);
   setHidden(stepHud, true);
   setHidden(loading, true);
   setHidden(confirmDone, true);
   setHidden(errorDisplay, true);
   completedSteps = [];
   lastInstruction = '';
+  currentStepNum = 0;
   if (stepHistory) stepHistory.innerHTML = '';
   removeThinkingEntry();
 }

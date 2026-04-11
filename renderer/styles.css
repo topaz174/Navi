@@ -55,6 +55,13 @@ body[data-role="control"] {
   pointer-events: none;
   z-index: 1000;
   animation: step-in var(--step-in) ease-out;
+  transition: opacity 150ms ease, transform 150ms ease, filter 150ms ease;
+}
+
+#bounding-box.transitioning {
+  opacity: 0;
+  transform: scale(0.985);
+  filter: blur(1px);
 }
 
 #bbox-ring {
@@ -96,6 +103,53 @@ body[data-role="control"] {
   z-index: 1002;
   padding: 10px 16px;
   min-width: 180px;
+}
+
+#step-advance {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1003;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(10, 20, 36, 0.72);
+  border: 1px solid rgba(147, 197, 253, 0.3);
+  color: rgba(239, 246, 255, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 12px 30px rgba(8, 22, 46, 0.2);
+  opacity: 0;
+}
+
+#step-advance.animate {
+  animation: step-advance-in 820ms cubic-bezier(0.22, 0.8, 0.2, 1);
+}
+
+#step-advance-text {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@keyframes step-advance-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px) scale(0.96);
+  }
+  22% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  72% {
+    opacity: 0.9;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px) scale(0.985);
+  }
 }
 
 #step-counter {
@@ -408,11 +462,17 @@ body[data-role="control"] {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: linear-gradient(180deg, rgba(10, 14, 24, 0.72), rgba(10, 14, 24, 0.58));
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background:
+    radial-gradient(circle at top left, rgba(125, 211, 252, 0.16), transparent 34%),
+    radial-gradient(circle at 85% 120%, rgba(96, 165, 250, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(19, 29, 47, 0.68), rgba(12, 19, 33, 0.56));
+  border: 1px solid rgba(191, 219, 254, 0.2);
+  box-shadow:
+    0 20px 46px rgba(8, 18, 38, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -16px 32px rgba(96, 165, 250, 0.05);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
   transition: max-height 180ms ease, width 180ms ease, box-shadow 180ms ease;
 }
 
@@ -444,8 +504,8 @@ body[data-role="control"] {
   width: 42px;
   height: 6px;
   border-radius: 999px;
-  background: rgba(191, 219, 254, 0.68);
-  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.28);
+  background: rgba(219, 234, 254, 0.82);
+  box-shadow: 0 4px 14px rgba(96, 165, 250, 0.24);
 }
 
 #chat-header {
@@ -533,16 +593,16 @@ body[data-role="control"] {
 }
 
 .chat-entry.assistant .chat-bubble {
-  background: rgba(15, 23, 42, 0.62);
-  color: rgba(239, 246, 255, 0.94);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: linear-gradient(180deg, rgba(24, 36, 58, 0.56), rgba(18, 27, 45, 0.46));
+  color: rgba(244, 248, 255, 0.98);
+  border: 1px solid rgba(191, 219, 254, 0.14);
   border-bottom-left-radius: 8px;
 }
 
 .chat-entry.system .chat-bubble {
-  background: rgba(30, 41, 59, 0.46);
-  color: rgba(191, 219, 254, 0.9);
-  border: 1px solid rgba(96, 165, 250, 0.12);
+  background: linear-gradient(180deg, rgba(30, 49, 79, 0.46), rgba(24, 39, 64, 0.38));
+  color: rgba(210, 228, 248, 0.96);
+  border: 1px solid rgba(125, 211, 252, 0.14);
   border-bottom-left-radius: 8px;
 }
 
@@ -557,8 +617,11 @@ body[data-role="control"] {
   gap: 8px;
   padding: 10px;
   border-radius: 16px;
-  background: rgba(7, 12, 24, 0.42);
-  border: 1px solid rgba(96, 165, 250, 0.1);
+  background:
+    linear-gradient(180deg, rgba(236, 247, 255, 0.08), rgba(186, 230, 253, 0.04)),
+    rgba(10, 17, 29, 0.28);
+  border: 1px solid rgba(191, 219, 254, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   pointer-events: auto;
   -webkit-app-region: no-drag;
 }
@@ -594,7 +657,7 @@ body[data-role="control"] {
 #active-goal-text {
   flex: 1;
   font-size: 12px;
-  color: rgba(191, 219, 254, 0.78);
+  color: rgba(210, 228, 248, 0.86);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -618,7 +681,7 @@ body[data-role="control"] {
   right: 0;
   bottom: 0;
   border-radius: 999px;
-  background: rgba(191, 219, 254, 0.42);
+  background: rgba(219, 234, 254, 0.54);
 }
 
 #resize-grip::before {

@@ -21,6 +21,7 @@ WS_EVENTS = {
 
 # Screen diff monitor
 POLL_INTERVAL_MS = 300
+CLICK_POLL_INTERVAL_MS = 40
 OVERLAY_SETTLE_MS = 250  # must be > step-in animation duration (180ms) so baseline captures final rendered state
 # Fraction of all screen pixels that must visibly change before we validate.
 DIFF_THRESHOLD = 0.0008
@@ -32,6 +33,7 @@ LOCAL_SETTLE_THRESHOLD = 0.003
 SETTLE_WINDOW_MS = 500
 COOLDOWN_MS = 0  # was 2000 — re-enable if diff monitor triggers prematurely after validation
 IDLE_TIMEOUT_MS = 60000
+CLICK_IDLE_TIMEOUT_MS = 60000
 # Per-pixel RGB mean delta (0-255) required for a pixel to count as changed.
 PIXEL_DIFF_MIN = 12
 FOCUS_PADDING_PX = 96
