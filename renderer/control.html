@@ -12,14 +12,6 @@
     <span id="completion-text">Done!</span>
   </div>
 
-  <div id="confirm-done" class="panel hidden">
-    <p id="confirm-text">Navi thinks the task is done — looks right?</p>
-    <div id="confirm-buttons">
-      <button id="btn-yes" class="navi-btn">Yes</button>
-      <button id="btn-continue" class="navi-btn secondary">Keep going</button>
-    </div>
-  </div>
-
   <div id="error-display" class="panel hidden">
     <span id="error-text"></span>
     <button id="error-dismiss" class="navi-btn small">OK</button>
@@ -48,6 +40,21 @@
         </button>
       </div>
     </div>
+    <div id="status-stack">
+      <div id="step-advance" class="hidden" aria-hidden="true">
+        <span id="step-advance-text"></span>
+      </div>
+      <div id="loading" class="hidden">
+        <div id="loading-inline">
+          <div id="loading-bar"></div>
+          <span id="loading-text">Navi is thinking...</span>
+        </div>
+      </div>
+      <div id="step-hud" class="panel hidden">
+        <div id="step-counter"></div>
+        <div id="step-history"></div>
+      </div>
+    </div>
     <div id="chat-log"></div>
     <div id="input-container">
       <input type="text" id="goal-input" placeholder="Ask Navi what you want to do..." autocomplete="off" spellcheck="false">
@@ -66,6 +73,7 @@
         </svg>
       </button>
     </div>
+    <div id="resize-grip" aria-hidden="true"></div>
   </div>
 
   <script src="app.js" type="module"></script>

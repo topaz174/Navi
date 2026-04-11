@@ -160,11 +160,10 @@ function flashStepAdvance(text, duration = 820) {
 }
 
 function renderOverlayStep(screenBx, screenBy, x, y, w, h, instruction) {
-  if (!(isOverlayWindow && boundingBox && tooltip && tooltipText)) return;
+  if (!(isOverlayWindow && boundingBox)) return;
 
   const bx = screenBx - (overlayBounds.x || 0);
   const by = screenBy - (overlayBounds.y || 0);
-  const anchorX = (Number.isFinite(x) ? x : screenBx + w / 2) - (overlayBounds.x || 0);
 
   boundingBox.style.left = `${bx}px`;
   boundingBox.style.top = `${by}px`;
@@ -176,16 +175,6 @@ function renderOverlayStep(screenBx, screenBy, x, y, w, h, instruction) {
   boundingBox.style.animation = 'none';
   boundingBox.offsetHeight;
   boundingBox.style.animation = '';
-
-  tooltipText.textContent = instruction;
-  setHidden(tooltip, false);
-
-  const tooltipHeight = 50;
-  const gap = 10;
-  tooltip.style.top = by > tooltipHeight + gap + 20
-    ? `${by - tooltipHeight - gap}px`
-    : `${by + h + gap}px`;
-  tooltip.style.left = `${Math.max(8, anchorX - 200)}px`;
 }
 
 function showStep(payload) {
@@ -247,7 +236,10 @@ function toggleLoading(active) {
   if (loading) {
     if (active) {
       resetScannerRoam();
+      loading.classList.remove('active');
       setHidden(loading, false);
+      loading.offsetHeight;
+      loading.classList.add('active');
       if (isOverlayWindow && currentStepNum > 0) {
         if (boundingBox && !boundingBox.classList.contains('hidden')) {
           boundingBox.classList.add('transitioning');
@@ -262,31 +254,27 @@ function toggleLoading(active) {
       }
     } else if (isOverlayWindow && loadingScanner) {
       pendingLoadingHide = setTimeout(() => {
+        loading.classList.remove('active');
         setHidden(loading, true);
         resetScannerRoam();
         pendingLoadingHide = null;
       }, 420);
     } else {
+      loading.classList.remove('active');
       setHidden(loading, true);
     }
   }
 
-  if (!chatLog) return;
-
-  if (active) {
-    if (!thinkingEntry) {
-      thinkingEntry = appendChatEntry('system', 'Navi is thinking...', { thinking: true });
-    }
-  } else {
-    removeThinkingEntry();
-  }
+  removeThinkingEntry();
 }
 
 function showConfirmDone() {
   setHidden(boundingBox, true);
   setHidden(tooltip, true);
   setHidden(confirmDone, false);
-  appendChatEntry('assistant', 'Navi thinks the task is done. Does it look right?');
+  if (isControlWindow) {
+    appendChatEntry('assistant', 'Navi thinks the task is done. Does it look right?');
+  }
 }
 
 function showCompletion() {
@@ -312,15 +300,11 @@ function showError(message) {
 }
 
 function hideOverlay() {
-  if (isOverlayWindow) {
-    document.body.style.opacity = '0';
-  }
+  document.body.style.opacity = '0';
 }
 
 function showOverlay() {
-  if (isOverlayWindow) {
-    document.body.style.opacity = '1';
-  }
+  document.body.style.opacity = '1';
 }
 
 function submitGoal() {
@@ -336,6 +320,9 @@ function submitGoal() {
   completedSteps = [];
   lastInstruction = '';
   goalInput.value = '';
+  window.setTimeout(() => {
+    window.navi.send('control-blur');
+  }, 0);
 }
 
 function resetToIdle() {
@@ -477,6 +464,7 @@ if (cancelBtn) {
   cancelBtn.addEventListener('click', () => {
     wsSend(WS_EVENTS.cancel);
     resetToIdle();
+    window.navi.send('control-blur');
   });
 }
 
@@ -485,6 +473,7 @@ if (btnYes) {
     setHidden(confirmDone, true);
     appendChatEntry('user', 'Yes, that looks right.');
     wsSend(WS_EVENTS.user_confirmed_done);
+    window.navi.send('control-blur');
   });
 }
 
@@ -493,6 +482,7 @@ if (btnContinue) {
     setHidden(confirmDone, true);
     appendChatEntry('user', 'Keep going.');
     wsSend(WS_EVENTS.user_continue);
+    window.navi.send('control-blur');
   });
 }
 

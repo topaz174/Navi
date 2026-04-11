@@ -17,6 +17,7 @@ from shared.constants import (
 logger = logging.getLogger(__name__)
 
 client = anthropic.Anthropic(max_retries=0, timeout=45.0)
+CACHE_CONTROL = {"type": "ephemeral"}
 
 PLANNING_SYSTEM = """You are Navi, a step-by-step software navigation assistant.
 
@@ -159,6 +160,20 @@ def _log_usage(perf: PerfSession | None, log_file: str, response, label: str) ->
     perf.event(log_file, label, stop_reason=str(sr) if sr is not None else "", input_tokens=inp or "", output_tokens=out or "")
 
 
+def _rate_limit_sleep_seconds(error: anthropic.RateLimitError, attempt: int) -> float:
+    """Use API-provided retry-after when available; otherwise use a short backoff."""
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers:
+        retry_after = headers.get("retry-after")
+        if retry_after:
+            try:
+                return max(0.5, float(retry_after))
+            except (TypeError, ValueError):
+                pass
+    return float(min(8, 2 * (attempt + 1)))
+
+
 def planning_call(b64_screenshot: str, goal: str, perf: PerfSession | None = None) -> dict:
     """Planning call: screenshot + goal -> JSON step array. No CU tool."""
     log_file = "01_planning.txt"
@@ -171,6 +186,7 @@ def planning_call(b64_screenshot: str, goal: str, perf: PerfSession | None = Non
             response = client.messages.create(
                 model=PLANNING_MODEL,
                 max_tokens=1024,
+                cache_control=CACHE_CONTROL,
                 system=PLANNING_SYSTEM,
                 messages=[
                     {
@@ -197,8 +213,8 @@ def planning_call(b64_screenshot: str, goal: str, perf: PerfSession | None = Non
                 perf.event(log_file, "_parse_json_response (local)")
             return _parse_json_response(text)
         except anthropic.RateLimitError as e:
-            wait = 15 * (attempt + 1)
-            logger.warning("Rate limited on planning attempt %d — waiting %ds", attempt + 1, wait)
+            wait = _rate_limit_sleep_seconds(e, attempt)
+            logger.warning("Rate limited on planning attempt %d — waiting %.1fs", attempt + 1, wait)
             if perf:
                 perf.event(log_file, f"RateLimitError — sleeping {wait}s before retry")
             time.sleep(wait)
@@ -296,6 +312,7 @@ Rules:
             response = client.beta.messages.create(
                 model=PLANNING_MODEL,
                 max_tokens=1024,
+                cache_control=CACHE_CONTROL,
                 betas=[CU_BETA_FLAG],
                 system=system_prompt,
                 tools=tools,
@@ -305,11 +322,12 @@ Rules:
                 perf.event(log_file, f"iter {iteration} HTTP response",
                            ms=round((time.perf_counter() - t0) * 1000, 1))
             _log_usage(perf, log_file, response, f"plan+ground iter {iteration} metadata")
-        except anthropic.RateLimitError:
-            logger.warning("Planning+grounding rate limited — waiting 15s")
+        except anthropic.RateLimitError as e:
+            wait = _rate_limit_sleep_seconds(e, iteration)
+            logger.warning("Planning+grounding rate limited — waiting %.1fs", wait)
             if perf:
-                perf.event(log_file, "RateLimitError — sleep 15s")
-            time.sleep(15)
+                perf.event(log_file, f"RateLimitError — sleep {wait}s")
+            time.sleep(wait)
             continue
 
         result = _parse_cu_response(response)
@@ -465,6 +483,7 @@ The computer tool click coordinate may be anywhere inside that rectangle, so do 
             response = client.beta.messages.create(
                 model=PLANNING_MODEL,
                 max_tokens=512,  # was 1024 — response is 3 structured lines; increase if truncated
+                cache_control=CACHE_CONTROL,
                 betas=[CU_BETA_FLAG],
                 system=system_prompt,
                 tools=tools,
@@ -473,11 +492,12 @@ The computer tool click coordinate may be anywhere inside that rectangle, so do 
             if perf:
                 perf.event(log_file, f"iter {iteration} HTTP response", ms=round((time.perf_counter() - t0) * 1000, 1))
             _log_usage(perf, log_file, response, f"grounding iter {iteration} metadata")
-        except anthropic.RateLimitError:
-            logger.warning("Grounding rate limited — waiting 15s")
+        except anthropic.RateLimitError as e:
+            wait = _rate_limit_sleep_seconds(e, iteration)
+            logger.warning("Grounding rate limited — waiting %.1fs", wait)
             if perf:
-                perf.event(log_file, "RateLimitError — sleep 15s")
-            time.sleep(15)
+                perf.event(log_file, f"RateLimitError — sleep {wait}s")
+            time.sleep(wait)
             continue
 
         result = _parse_cu_response(response)
@@ -628,6 +648,7 @@ If the next element is not visible, set STATUS:replan and describe what to do.""
             response = client.beta.messages.create(
                 model=PLANNING_MODEL,
                 max_tokens=512,  # was 1024 — response is 3 structured lines; increase if truncated
+                cache_control=CACHE_CONTROL,
                 betas=[CU_BETA_FLAG],
                 system=system_prompt,
                 tools=tools,
@@ -636,11 +657,12 @@ If the next element is not visible, set STATUS:replan and describe what to do.""
             if perf:
                 perf.event(log_file, f"iter {iteration} HTTP response", ms=round((time.perf_counter() - t0) * 1000, 1))
             _log_usage(perf, log_file, response, f"validation iter {iteration} metadata")
-        except anthropic.RateLimitError:
-            logger.warning("Validation rate limited — waiting 15s")
+        except anthropic.RateLimitError as e:
+            wait = _rate_limit_sleep_seconds(e, iteration)
+            logger.warning("Validation rate limited — waiting %.1fs", wait)
             if perf:
-                perf.event(log_file, "RateLimitError — sleep 15s")
-            time.sleep(15)
+                perf.event(log_file, f"RateLimitError — sleep {wait}s")
+            time.sleep(wait)
             continue
 
         result = _parse_cu_response(response)
@@ -727,6 +749,7 @@ def goal_check_call(b64_screenshot: str, goal: str, perf: PerfSession | None = N
     response = client.messages.create(
         model=GOAL_CHECK_MODEL,
         max_tokens=256,
+        cache_control=CACHE_CONTROL,
         system=GOAL_CHECK_SYSTEM.format(goal=goal),
         messages=[
             {

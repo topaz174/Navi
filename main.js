@@ -49,16 +49,16 @@ function createControlWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { x, y, width, height } = primaryDisplay.workArea;
 
-  const initialWidth = Math.min(460, width - 40);
-  const initialHeight = 152;
+  const initialWidth = Math.min(520, width - 40);
+  const initialHeight = 248;
   const initialX = Math.round(x + (width - initialWidth) / 2);
-  const initialY = Math.round(y + height - initialHeight - 24);
+  const initialY = Math.round(y + height - initialHeight - 20);
 
   controlWin = new BrowserWindow({
     width: initialWidth,
     height: initialHeight,
-    minWidth: 360,
-    minHeight: 132,
+    minWidth: 400,
+    minHeight: 220,
     x: initialX,
     y: initialY,
     frame: false,
@@ -126,8 +126,7 @@ function createTray() {
       label: 'Show Navi',
       click: () => {
         if (controlWin) {
-          controlWin.show();
-          controlWin.focus();
+          controlWin.showInactive();
         }
         if (overlayWin) {
           overlayWin.showInactive();
@@ -211,6 +210,12 @@ app.whenReady().then(() => {
   ipcMain.on('ws-send', (_event, data) => {
     if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
       wsConnection.send(data);
+    }
+  });
+
+  ipcMain.on('control-blur', () => {
+    if (controlWin && !controlWin.isDestroyed()) {
+      controlWin.blur();
     }
   });
 });

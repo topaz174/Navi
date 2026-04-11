@@ -1,5 +1,8 @@
 WS_PORT = 7373
 
+CAPTURE_PULSE_MS = 120
+OVERLAY_HIDE_SETTLE_MS = 20
+
 WS_EVENTS = {
     "dpr": "dpr",
     "step": "step",

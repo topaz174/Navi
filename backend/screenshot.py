@@ -68,15 +68,17 @@ async def capture_with_overlay_hidden(
     phase_file: str = "capture.txt",
 ) -> tuple[str, int, int, float]:
     """Hide overlay, capture screenshot, show overlay again."""
-    from shared.constants import WS_EVENTS
+    from shared.constants import CAPTURE_PULSE_MS, OVERLAY_HIDE_SETTLE_MS, WS_EVENTS
 
     if perf:
         perf.event(phase_file, "WS hide overlay (Electron)")
+        perf.event(phase_file, f"asyncio.sleep {CAPTURE_PULSE_MS}ms (capture pulse)")
+    await asyncio.sleep(CAPTURE_PULSE_MS / 1000.0)
     await ws_send(WS_EVENTS["hide"], {})
     try:
         if perf:
-            perf.event(phase_file, "asyncio.sleep 20ms (overlay paint)")
-        await asyncio.sleep(0.020)  # wait ~1 frame for overlay to hide
+            perf.event(phase_file, f"asyncio.sleep {OVERLAY_HIDE_SETTLE_MS}ms (overlay paint)")
+        await asyncio.sleep(OVERLAY_HIDE_SETTLE_MS / 1000.0)  # wait ~1 frame for overlay to hide
         if perf:
             perf.event(phase_file, "capture_and_encode (thread pool) start")
         t0 = time.perf_counter()
