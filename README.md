@@ -11,10 +11,6 @@ Navi is a macOS desktop app that takes a natural language goal — typed or spok
     <td><img src="https://github.com/user-attachments/assets/25dcc195-ea2e-4d62-aa70-e28cd6903b26" width="300" alt="Step 3"></td>
   </tr>
 </table>
-<img width="866" height="511" alt="image" src="https://github.com/user-attachments/assets/4a04685c-da58-4d13-aec0-4d3ca9e3bfa4" />
-<img width="463" height="409" alt="image" src="https://github.com/user-attachments/assets/af50081b-1a14-487a-9b8e-b38cc2fef655" />
-<img width="779" height="504" alt="image" src="https://github.com/user-attachments/assets/25dcc195-ea2e-4d62-aa70-e28cd6903b26" />
-
 
 It works on any application visible on screen — mainstream, niche, modern, or legacy — to the best of the model's vision capability. No integrations, no browser extensions, no MCP servers. If it's on screen, Navi can guide you through it.
 
