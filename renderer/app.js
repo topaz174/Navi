@@ -180,8 +180,18 @@ function showStep(payload) {
   const targetCenterX = screenBx - (overlayBounds.x || 0) + w / 2;
   const targetCenterY = screenBy - (overlayBounds.y || 0) + h / 2;
 
+  if (stepCounter) {
+    stepCounter.textContent = `Step ${step_num} of ${total_steps} — ${instruction}`;
+    stepCounter.dataset.instruction = instruction;
+  }
+  setHidden(stepHud, false);
+  renderStepHistory();
+  removeThinkingEntry();
+  appendChatEntry('assistant', instruction);
+
   clearPendingLoadingHide();
-  if (isOverlayWindow && loading && !loading.classList.contains('hidden') && loadingScanner) {
+  const scannerActive = isOverlayWindow && loading && !loading.classList.contains('hidden') && loadingScanner;
+  if (scannerActive) {
     animateScannerToTarget(targetCenterX, targetCenterY).finally(() => {
       setHidden(loading, true);
       resetScannerRoam();
@@ -192,22 +202,15 @@ function showStep(payload) {
   if (isOverlayWindow && step_num > 1) {
     if (boundingBox) boundingBox.classList.add('transitioning');
     if (tooltip) tooltip.classList.add('hidden');
+    // when scanner is animating, delay the box to land exactly as the scanner arrives
+    const boxDelay = scannerActive ? ANIMATION.scannerDurationMs : UI.stepTransitionDelayMs;
     pendingStepRender = setTimeout(() => {
       renderOverlayStep(screenBx, screenBy, x, y, w, h, instruction);
       pendingStepRender = null;
-    }, UI.stepTransitionDelayMs);
+    }, boxDelay);
   } else {
     renderOverlayStep(screenBx, screenBy, x, y, w, h, instruction);
   }
-
-  if (stepCounter) {
-    stepCounter.textContent = `Step ${step_num} of ${total_steps} — ${instruction}`;
-    stepCounter.dataset.instruction = instruction;
-  }
-  setHidden(stepHud, false);
-  renderStepHistory();
-  removeThinkingEntry();
-  appendChatEntry('assistant', instruction);
   currentStepNum = step_num;
 
   setHidden(confirmDone, true);
