@@ -7,7 +7,7 @@ Navi is a macOS desktop app that takes a natural language goal — typed or spok
 <table>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/4a04685c-da58-4d13-aec0-4d3ca9e3bfa4" width="300" alt="Step 1"></td>
-    <td><img src="https://github.com/user-attachments/assets/252f7d58-ee11-4080-b697-587a9ebc2ec1" width="300" alt="Step 2"></td>
+    <td><img src="https://github.com/user-attachments/assets/f9802d47-18c0-4138-b323-3a459453aeb0" width="300" alt="Step 2"></td>
     <td><img src="https://github.com/user-attachments/assets/25dcc195-ea2e-4d62-aa70-e28cd6903b26" width="300" alt="Step 3"></td>
   </tr>
 </table>
