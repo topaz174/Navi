@@ -4,18 +4,10 @@ import logging
 import os
 import sys
 
-# Add project root to path so shared/ is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Load .env manually to avoid python-dotenv dependency issues
-_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-if os.path.exists(_env_path):
-    with open(_env_path) as _f:
-        for _line in _f:
-            _line = _line.strip()
-            if _line and not _line.startswith("#") and "=" in _line:
-                _key, _, _val = _line.partition("=")
-                os.environ.setdefault(_key.strip(), _val.strip())
+from dotenv import load_dotenv
+load_dotenv()
 
 import websockets
 
@@ -31,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger("navi")
 
 
-class NaviServer: 
+class NaviServer:
     def __init__(self):
         self._engine: NaviEngine | None = None
         self._ws: websockets.WebSocketServerProtocol | None = None
@@ -109,24 +101,19 @@ class NaviServer:
                 await self._engine.handle_cancel()
 
     async def start(self):
-        # Validate API key
         api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         if not api_key:
             logger.error("ANTHROPIC_API_KEY not set in .env — please add it and restart")
-            # Keep running so Electron can connect and show the setup screen
         else:
             logger.info("API key loaded")
 
-        # Test screenshot permission
         try:
             from backend.screenshot import capture_screenshot
-            png, w, h = capture_screenshot()
-            # Check if screenshot is all black (permission denied)
             from PIL import Image
             import io
-            img = Image.open(io.BytesIO(png))
             import numpy as np
-            arr = np.array(img)
+            png, w, h = capture_screenshot()
+            arr = np.array(Image.open(io.BytesIO(png)))
             if arr.mean() < 1.0:
                 logger.warning("Screenshot appears black — Screen Recording permission may be needed")
             else:
@@ -136,7 +123,7 @@ class NaviServer:
 
         logger.info("Starting WebSocket server on port %d", WS_PORT)
         async with websockets.serve(self.handler, "localhost", WS_PORT):
-            await asyncio.Future()  # run forever
+            await asyncio.Future()
 
 
 def main():

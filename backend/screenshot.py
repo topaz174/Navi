@@ -9,12 +9,13 @@ import mss.tools
 from PIL import Image
 
 from backend.scaling import get_scale_factor
+from shared.constants import CAPTURE_PULSE_MS, OVERLAY_HIDE_SETTLE_MS, WS_EVENTS
 
 logger = logging.getLogger(__name__)
 
 
 def capture_screenshot() -> tuple[bytes, int, int]:
-    """Capture the primary monitor and return (png_bytes, width, height)."""
+    """capture primary monitor and return (png_bytes, width, height)"""
     with mss.mss() as sct:
         monitor = sct.monitors[1]
         raw = sct.grab(monitor)
@@ -26,10 +27,7 @@ def capture_screenshot() -> tuple[bytes, int, int]:
 
 
 def capture_and_encode(dpr: float = 2.0) -> tuple[str, int, int, float]:
-    """Capture, scale for the API, and return (base64_png, scaled_w, scaled_h, scale_factor).
-
-    The returned dimensions are in API coordinate space (what Claude sees).
-    """
+    """capture, scale for the api, return (base64_png, scaled_w, scaled_h, scale_factor)"""
     png_bytes, phys_w, phys_h = capture_screenshot()
     scale = get_scale_factor(phys_w, phys_h)
 
@@ -50,15 +48,14 @@ def capture_and_encode(dpr: float = 2.0) -> tuple[str, int, int, float]:
 
 
 def capture_raw_array():
-    """Capture primary monitor and return a numpy-compatible RGB array for diffing."""
+    """capture primary monitor and return a numpy rgb array for diffing"""
     import numpy as np
 
     with mss.mss() as sct:
         monitor = sct.monitors[1]
         raw = sct.grab(monitor)
-        # mss returns BGRA; convert to RGB via numpy slicing
         arr = np.frombuffer(raw.bgra, dtype=np.uint8).reshape(raw.height, raw.width, 4)
-        return arr[:, :, :3].copy()  # drop alpha, ensure contiguous
+        return arr[:, :, :3].copy()
 
 
 async def capture_with_overlay_hidden(
@@ -67,10 +64,7 @@ async def capture_with_overlay_hidden(
     perf=None,
     phase_file: str = "capture.txt",
 ) -> tuple[str, int, int, float]:
-    """Flip setContentProtection on (via WS → Electron main process) so mss/CGWindowListCreateImage
-    skips the overlay, capture, then flip protection back off so screen recordings stay visible."""
-    from shared.constants import CAPTURE_PULSE_MS, OVERLAY_HIDE_SETTLE_MS, WS_EVENTS
-
+    """toggle setContentProtection via WS so mss skips the overlay windows, then restore"""
     if perf:
         perf.event(phase_file, f"asyncio.sleep {CAPTURE_PULSE_MS}ms (capture pulse)")
     await asyncio.sleep(CAPTURE_PULSE_MS / 1000.0)

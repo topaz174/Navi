@@ -13,7 +13,7 @@ from backend.click_monitor import ClickMonitor
 from backend.diff_monitor import DiffMonitor
 from backend.perf_log import PerfSession
 from backend.screenshot import capture_raw_array, capture_with_overlay_hidden
-from shared.constants import WS_EVENTS
+from shared.constants import FALLBACK_BOX_CLICK, FALLBACK_BOX_TYPE, WS_EVENTS
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,6 @@ class NaviEngine:
                     dpr, logical_w, logical_h, work_area_y)
 
     async def handle_goal(self, goal: str):
-        """User submitted a goal — start the pipeline."""
         self._goal = goal
         self._plan = None
         self._steps = []
@@ -91,7 +90,6 @@ class NaviEngine:
         self._state = DONE
 
     async def handle_user_continue(self):
-        """User says task isn't done — resume validation."""
         await self._transition(VALIDATING)
 
     async def _transition(self, new_state: str):
@@ -123,7 +121,6 @@ class NaviEngine:
             self._state = IDLE
 
     async def _do_planning(self):
-        """Plan and ground step 1 in a single CU call — saves one full API round-trip."""
         await self._ws_send(WS_EVENTS["loading"], {"active": True})
         if self._perf:
             self._perf.event("01_planning_and_grounding.txt", "state _do_planning: WS loading=true")
@@ -173,8 +170,7 @@ class NaviEngine:
         await self._transition(DISPLAYING)
 
     async def _do_grounding(self):
-        """Standalone grounding — not used in the main flow (planning now merges this).
-        Kept for potential direct calls or debugging."""
+        """standalone grounding path — unused in normal flow, kept for debugging"""
         await self._ws_send(WS_EVENTS["loading"], {"active": True})
 
         if not self._steps:
@@ -233,18 +229,11 @@ class NaviEngine:
             )
 
     def _apply_result(self, result: dict):
-        """Translate API-space result into logical CSS pixels for the renderer.
-
-        The model returns coordinates in (scaled_w × scaled_h) space.
-        We convert to logical CSS pixels using:
-            css = model_coord * (logical_px / scaled_px)
-        This works regardless of whether mss captures at physical or logical resolution.
-        """
+        """translate api-space coordinates to logical css pixels"""
         x, y = result.get("x"), result.get("y")
         box_x, box_y = result.get("box_x"), result.get("box_y")
         w, h = result.get("w"), result.get("h")
 
-        # Compute ratio from API coordinate space → logical CSS pixels
         ratio_x = (self._logical_w / self._scaled_w) if self._scaled_w and self._logical_w else 1.0
         ratio_y = (self._logical_h / self._scaled_h) if self._scaled_h and self._logical_h else 1.0
         logger.debug("Coord ratio x=%.3f y=%.3f  logical=%dx%d  scaled=%dx%d",
@@ -271,21 +260,14 @@ class NaviEngine:
             logger.debug("Model coord (%s, %s) → CSS (%.1f, %.1f)  workAreaY=%d",
                          x, y, self._display_x, self._display_y, self._work_area_y)
         else:
-            self._display_x = None
-            self._display_y = None
-            self._display_left = None
-            self._display_top = None
+            self._display_x = self._display_y = self._display_left = self._display_top = None
 
         if w is not None and h is not None:
             self._display_w = w * ratio_x
             self._display_h = h * ratio_y
         else:
-            # Fallback sizes in API coordinate space (scaled to CSS via ratio)
             action = result.get("action_type", "click")
-            if action in ("type", "key"):
-                fallback_w, fallback_h = 220, 28
-            else:
-                fallback_w, fallback_h = 120, 24
+            fallback_w, fallback_h = FALLBACK_BOX_TYPE if action in ("type", "key") else FALLBACK_BOX_CLICK
             self._display_w = fallback_w * ratio_x
             self._display_h = fallback_h * ratio_y
 
@@ -319,7 +301,6 @@ class NaviEngine:
         await self._transition(WAITING_FOR_CHANGE)
 
     def _do_waiting(self):
-        """Start diff monitor — it will call back when screen settles."""
         if self._diff_monitor:
             self._diff_monitor.stop()
         if self._click_monitor:
@@ -328,12 +309,18 @@ class NaviEngine:
         wait_file = f"05_waiting_after_step_{self._current_step:02d}_displayed.txt"
         if self._perf:
             self._perf.event(wait_file, f"state WAITING_FOR_CHANGE: start DiffMonitor (instruction step {self._current_step})")
-        focus_rect = {
-            "left": self._display_left if self._display_left is not None else max(0, self._display_x - self._display_w / 2),
-            "top": self._display_top if self._display_top is not None else max(0, self._display_y - self._display_h / 2),
-            "width": self._display_w,
-            "height": self._display_h,
-        } if self._display_w is not None and self._display_h is not None and (self._display_left is not None or self._display_x is not None) and (self._display_top is not None or self._display_y is not None) else None
+        has_dims = self._display_w is not None and self._display_h is not None
+        has_left = self._display_left is not None or self._display_x is not None
+        has_top = self._display_top is not None or self._display_y is not None
+        if has_dims and has_left and has_top:
+            focus_rect = {
+                "left": self._display_left if self._display_left is not None else max(0, self._display_x - self._display_w / 2),
+                "top": self._display_top if self._display_top is not None else max(0, self._display_y - self._display_h / 2),
+                "width": self._display_w,
+                "height": self._display_h,
+            }
+        else:
+            focus_rect = None
 
         if self._display_action_type in CLICK_ACTIONS and focus_rect is not None:
             if self._perf:
@@ -372,7 +359,6 @@ class NaviEngine:
         self._diff_monitor.start()
 
     async def _on_target_clicked(self):
-        """Called by ClickMonitor when the user clicks inside the target rect."""
         if self._cancelled:
             return
         if self._maybe_auto_advance_without_validation():
@@ -382,25 +368,17 @@ class NaviEngine:
         asyncio.ensure_future(self._transition(VALIDATING))
 
     async def _on_screen_settled(self, settled_frame):
-        """Called by DiffMonitor when the screen has changed and settled."""
         if self._cancelled:
             return
         if self._maybe_auto_advance_without_validation():
             return
         if self._perf:
             self._perf.event("00_timeline.txt", "_on_screen_settled: scheduling VALIDATING")
-        # Schedule on a new task so the CancelledError from _diff_monitor.stop()
-        # (called inside _do_validating) doesn't propagate back up through _poll_loop
-        # and silently kill the validation before the HTTP request is even made.
+        # new task so CancelledError from _diff_monitor.stop() doesn't kill the validation request
         asyncio.ensure_future(self._transition(VALIDATING))
 
     def _maybe_auto_advance_without_validation(self) -> bool:
-        """Advance locally when the next plan step doesn't need a new grounded target.
-
-        The most common case is click/focus an input -> type into that same input.
-        Reusing the existing box avoids an unnecessary CU validation call and keeps
-        progression responsive under tight image-token rate limits.
-        """
+        """skip validation for click→type/key sequences — same element, no re-grounding needed"""
         if self._current_step <= 0 or self._current_step >= len(self._steps):
             return False
 
@@ -423,8 +401,6 @@ class NaviEngine:
         return True
 
     async def _on_idle_timeout(self):
-        """Called when no screen change detected for IDLE_TIMEOUT_MS."""
-        # Re-display the current step with a nudge
         await self._ws_send(WS_EVENTS["step"], {
             "instruction": f"Still waiting... {self._display_instruction}",
             "x": self._display_x,
@@ -461,11 +437,9 @@ class NaviEngine:
         self._scaled_w = sw
         self._scaled_h = sh
 
-        # Use the instruction actually shown to the user, not the pre-planned one.
         current_instruction = self._display_instruction
 
-        # Only pass completed steps to validation — hiding future plan steps prevents the
-        # model from anchoring on them and forces it to reason from actual screen state.
+        # hide future plan steps so the model reasons from actual screen state, not the original plan
         completed_steps = [s for s in (self._plan or {}).get("steps", []) if s.get("n", 0) <= self._current_step]
         validation_plan = {**(self._plan or {}), "steps": completed_steps}
 
@@ -486,7 +460,6 @@ class NaviEngine:
         )
         self._last_claude_call_time = time.time()
 
-        # Append to message history
         self._messages.append({
             "role": "assistant",
             "content": [{"type": "text", "text": result.get("raw_text", "")}],
@@ -500,13 +473,11 @@ class NaviEngine:
             await self._transition(GOAL_CHECK)
         elif status == "retry":
             self._apply_result(result)
-            # Re-show same step with plan instruction
             idx = self._current_step - 1
             if 0 <= idx < len(self._steps):
                 self._display_instruction = self._steps[idx]["instruction"]
             await self._transition(DISPLAYING)
         elif status == "replan":
-            # CU model provides a new ad-hoc step — keep its instruction
             self._current_step += 1
             self._apply_result(result)
             await self._transition(DISPLAYING)
@@ -514,13 +485,11 @@ class NaviEngine:
             # confirmed — advance
             self._current_step += 1
             self._apply_result(result)
-            # Validation's instruction is grounded in the actual current screen; only fall
-            # back to the pre-planned instruction when validation returned none.
+            # validation instruction is screen-grounded; only fall back when absent
             if not self._display_instruction:
                 idx = self._current_step - 1
                 if 0 <= idx < len(self._steps):
                     self._display_instruction = self._steps[idx]["instruction"]
-            # When the pre-generated plan is exhausted, verify the goal before continuing.
             if self._current_step > self._total_steps:
                 await self._transition(GOAL_CHECK)
             else:
@@ -532,7 +501,6 @@ class NaviEngine:
             self._perf.event(gc_file, "state _do_goal_check: WS loading=true")
         await self._ws_send(WS_EVENTS["loading"], {"active": True})
 
-        # Use the overlay-hidden capture so the Navi windows don't pollute the goal check.
         b64, gc_w, gc_h, gc_scale = await capture_with_overlay_hidden(
             self._ws_send, self._dpr, perf=self._perf, phase_file=gc_file,
         )
@@ -546,9 +514,7 @@ class NaviEngine:
             await self._ws_send(WS_EVENTS["confirm_done"], {"reasoning": result["reasoning"]})
             # Wait for user_confirmed_done or user_continue event
         else:
-            # Goal not yet achieved — the plan was incomplete or a step was missed.
-            # Re-plan from the current screen state so the new plan reflects what is
-            # actually on screen right now (e.g. an open file picker, a missing step, etc.)
+            # plan was incomplete — re-plan from current screen state
             if self._replan_count >= _MAX_REPLANS:
                 await self._ws_send(WS_EVENTS["error"], {
                     "message": f"Could not complete goal after {_MAX_REPLANS} re-plans. {result['reasoning']}",
@@ -563,7 +529,7 @@ class NaviEngine:
             await self._ws_send(WS_EVENTS["loading"], {"active": True})
             plan, grounding = await asyncio.to_thread(
                 planning_and_grounding_call,
-                b64,  # reuse the already-captured clean screenshot
+                b64,
                 self._goal,
                 gc_w,
                 gc_h,

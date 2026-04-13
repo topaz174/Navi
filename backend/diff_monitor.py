@@ -7,6 +7,7 @@ import numpy as np
 from backend.perf_log import PerfSession
 from shared.constants import (
     COOLDOWN_MS,
+    DIFF_SETTLE_FRAMES,
     DIFF_THRESHOLD,
     FOCUS_PADDING_PX,
     IDLE_TIMEOUT_MS,
@@ -98,8 +99,7 @@ class DiffMonitor:
         cooldown_sec = COOLDOWN_MS / 1000.0
         overlay_settle_sec = OVERLAY_SETTLE_MS / 1000.0
 
-        # Capture baseline without hiding — the overlay stays mostly static and below our
-        # changed-pixel threshold, so it won't trigger advancement on its own.
+        # overlay stays below the diff threshold, so no need to hide for baseline
         if self._perf:
             self._perf.event(
                 self._perf_log_file,
@@ -158,7 +158,6 @@ class DiffMonitor:
                 )
 
                 if diff_vs_baseline > DIFF_THRESHOLD or diff_vs_focus_baseline > LOCAL_DIFF_THRESHOLD:
-                    # Screen changed — check if settled
                     diff_vs_prev = compute_diff(prev_frame, frame)
                     diff_vs_focus_prev = (
                         compute_diff(prev_focus, focus_frame)
@@ -170,8 +169,7 @@ class DiffMonitor:
                     else:
                         settled_count = 0
 
-                    if settled_count >= 2:
-                        # Settled! Respect cooldown
+                    if settled_count >= DIFF_SETTLE_FRAMES:
                         elapsed_since_claude = time.time() - self._last_claude_call_time
                         if self._perf:
                             self._perf.event(

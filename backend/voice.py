@@ -1,11 +1,9 @@
 import logging
 import threading
 
-logger = logging.getLogger(__name__)
+from shared.constants import VOICE_CHUNK, VOICE_MAX_SECONDS, VOICE_SAMPLE_RATE
 
-SAMPLE_RATE = 16000
-CHUNK = 1024
-MAX_SECONDS = 8
+logger = logging.getLogger(__name__)
 
 
 class VoiceRecorder:
@@ -37,10 +35,10 @@ class VoiceRecorder:
 
         try:
             frames = []
-            max_chunks = int(MAX_SECONDS * SAMPLE_RATE / CHUNK)
-            with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=CHUNK) as stream:
+            max_chunks = int(VOICE_MAX_SECONDS * VOICE_SAMPLE_RATE / VOICE_CHUNK)
+            with sd.InputStream(samplerate=VOICE_SAMPLE_RATE, channels=1, dtype="int16", blocksize=VOICE_CHUNK) as stream:
                 while self._recording and len(frames) < max_chunks:
-                    data, _ = stream.read(CHUNK)
+                    data, _ = stream.read(VOICE_CHUNK)
                     frames.append(data.copy())
         except Exception as e:
             self._recording = False
@@ -55,7 +53,7 @@ class VoiceRecorder:
 
         audio_np = np.concatenate(frames, axis=0)
         recognizer = sr.Recognizer()
-        audio_data = sr.AudioData(audio_np.tobytes(), SAMPLE_RATE, 2)
+        audio_data = sr.AudioData(audio_np.tobytes(), VOICE_SAMPLE_RATE, 2)
 
         try:
             text = recognizer.recognize_google(audio_data)

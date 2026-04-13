@@ -1,4 +1,4 @@
-import { WS_EVENTS } from './constants.js';
+import { ANIMATION, UI, WS_EVENTS } from './constants.js';
 
 const role = document.body.dataset.role || 'control';
 const isControlWindow = role === 'control';
@@ -108,7 +108,7 @@ function animateScannerToTarget(targetX, targetY) {
       { transform: `translate(${endX}px, ${endY}px) rotate(-5deg) scale(1)` },
     ],
     {
-      duration: 280,
+      duration: ANIMATION.scannerDurationMs,
       easing: 'cubic-bezier(0.18, 0.88, 0.16, 1)',
       fill: 'forwards',
     }
@@ -195,7 +195,7 @@ function showStep(payload) {
     pendingStepRender = setTimeout(() => {
       renderOverlayStep(screenBx, screenBy, x, y, w, h, instruction);
       pendingStepRender = null;
-    }, 170);
+    }, UI.stepTransitionDelayMs);
   } else {
     renderOverlayStep(screenBx, screenBy, x, y, w, h, instruction);
   }
@@ -238,7 +238,7 @@ function toggleLoading(active) {
           boundingBox.classList.add('transitioning');
           window.setTimeout(() => {
             setHidden(boundingBox, true);
-          }, 130);
+          }, UI.boxHideDelayMs);
         }
         if (tooltip) {
           setHidden(tooltip, true);
@@ -250,7 +250,7 @@ function toggleLoading(active) {
         setHidden(loading, true);
         resetScannerRoam();
         pendingLoadingHide = null;
-      }, 420);
+      }, UI.loadingHideDelayMs);
     } else {
       loading.classList.remove('active');
       setHidden(loading, true);
@@ -281,7 +281,7 @@ function showCompletion() {
   setTimeout(() => {
     setHidden(completion, true);
     resetToIdle();
-  }, 3000);
+  }, UI.completionDisplayMs);
 }
 
 function showError(message) {
@@ -328,11 +328,6 @@ function resetToIdle() {
   removeThinkingEntry();
 }
 
-// ── Voice input (via Python backend) ──────────────
-// webkitSpeechRecognition in Electron requires an authenticated Google session
-// which is unavailable. Instead we send voice_start/voice_stop to the Python
-// backend, which records via sounddevice and transcribes via Google Speech API,
-// then sends back a voice_transcript or voice_error event.
 function setupDictation() {
   if (!micToggle || !goalInput) return;
 

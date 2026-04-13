@@ -55,10 +55,7 @@ Judge only by what is visible on screen right now."""
 
 
 def _parse_json_response(text: str) -> dict:
-    """Extract and parse the first JSON object from model output.
-
-    Handles: preamble text before the JSON, markdown code fences, and clean JSON.
-    """
+    """extract and parse the first json object from model output"""
     # Remove all markdown fences anywhere in the text
     text = re.sub(r"```(?:json)?\s*", "", text)
     text = re.sub(r"```", "", text).strip()
@@ -161,7 +158,6 @@ def _log_usage(perf: PerfSession | None, log_file: str, response, label: str) ->
 
 
 def _rate_limit_sleep_seconds(error: anthropic.RateLimitError, attempt: int) -> float:
-    """Use API-provided retry-after when available; otherwise use a short backoff."""
     response = getattr(error, "response", None)
     headers = getattr(response, "headers", None)
     if headers:
@@ -482,7 +478,7 @@ The computer tool click coordinate may be anywhere inside that rectangle, so do 
             t0 = time.perf_counter()
             response = client.beta.messages.create(
                 model=PLANNING_MODEL,
-                max_tokens=512,  # was 1024 — response is 3 structured lines; increase if truncated
+                max_tokens=512,
                 cache_control=CACHE_CONTROL,
                 betas=[CU_BETA_FLAG],
                 system=system_prompt,
@@ -515,8 +511,7 @@ The computer tool click coordinate may be anywhere inside that rectangle, so do 
                 perf.event(log_file, f"iter {iteration} done (coords + BOX)", action=result.get("action_type"))
             return result
 
-        # Coordinates but no BOX — the fallback dims are too imprecise; ask for BOX only.
-        # The model sees its own prior tool_use as a tool_result, no new screenshot needed.
+        # coords but no BOX — ask for the rectangle; no new screenshot needed
         if result["x"] is not None:
             if perf:
                 perf.event(log_file, f"iter {iteration} branch: coords without BOX — requesting rectangle")
@@ -542,15 +537,13 @@ The computer tool click coordinate may be anywhere inside that rectangle, so do 
                 })
             continue
 
-        # Model took a screenshot action — provide the clean screenshot and continue
         if result["action_type"] == "screenshot":
             logger.debug("Grounding iter %d: model requested screenshot", iteration + 1)
             if perf:
                 perf.event(log_file, f"iter {iteration} branch: model used screenshot tool (extra round-trip)")
             assistant_content, tool_use_id = _serialize_response_content(response)
             messages.append({"role": "assistant", "content": assistant_content})
-            # Always reuse the clean pre-captured screenshot — never capture live here
-            # because the Navi overlay would be visible and confuse the model.
+            # reuse the pre-captured screenshot — capturing live would include the overlay
             messages.append({
                 "role": "user",
                 "content": [{"type": "tool_result", "tool_use_id": tool_use_id,
@@ -558,7 +551,6 @@ The computer tool click coordinate may be anywhere inside that rectangle, so do 
             })
             continue
 
-        # No coordinates and no screenshot action — nudge the model to use the tool
         logger.warning("Grounding iter %d: no coordinates in response, nudging model", iteration + 1)
         if perf:
             perf.event(log_file, f"iter {iteration} branch: no coords — nudge model")
@@ -586,7 +578,6 @@ def validation_call(
     dpr: float = 2.0,
     perf: PerfSession | None = None,
 ) -> dict:
-    """Validation call: check if step N completed and get next action."""
     system_prompt = f"""You are Navi, a navigation guide assistant. You identify WHERE the user needs to interact next.
 
 Goal: {goal}
@@ -620,7 +611,6 @@ If the next element is not visible, set STATUS:replan and describe what to do.""
         }
     ]
 
-    # Build messages: include prior history + new screenshot
     all_messages = list(messages)
     all_messages.append(
         {
@@ -647,7 +637,7 @@ If the next element is not visible, set STATUS:replan and describe what to do.""
             t0 = time.perf_counter()
             response = client.beta.messages.create(
                 model=PLANNING_MODEL,
-                max_tokens=512,  # was 1024 — response is 3 structured lines; increase if truncated
+                max_tokens=512,
                 cache_control=CACHE_CONTROL,
                 betas=[CU_BETA_FLAG],
                 system=system_prompt,
@@ -685,7 +675,6 @@ If the next element is not visible, set STATUS:replan and describe what to do.""
                 perf.event(log_file, f"iter {iteration} done (coords + BOX)", status=result.get("status"))
             return result
 
-        # Coordinates but no BOX — request the rectangle without a new screenshot.
         if result["x"] is not None:
             if perf:
                 perf.event(log_file, f"iter {iteration} branch: coords without BOX — requesting rectangle")
@@ -741,7 +730,6 @@ If the next element is not visible, set STATUS:replan and describe what to do.""
 
 
 def goal_check_call(b64_screenshot: str, goal: str, perf: PerfSession | None = None) -> dict:
-    """Isolated goal check with Haiku. No tools, no history."""
     log_file = "06_goal_check.txt"
     if perf:
         perf.event(log_file, "goal_check_call Haiku messages.create start")
@@ -773,7 +761,6 @@ def goal_check_call(b64_screenshot: str, goal: str, perf: PerfSession | None = N
 
 
 def _parse_cu_response(response) -> dict:
-    """Extract coordinates, bounds, instruction, and status from a CU response."""
     result = {
         "x": None,
         "y": None,

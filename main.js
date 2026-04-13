@@ -2,7 +2,20 @@ const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, session } 
 const path = require('path');
 const WebSocket = require('ws');
 
+// keep WS_PORT in sync with renderer/constants.js
 const WS_PORT = 7373;
+
+const CONTROL_WIN_MAX_WIDTH  = 520;
+const CONTROL_WIN_HEIGHT     = 248;
+const CONTROL_WIN_MIN_WIDTH  = 400;
+const CONTROL_WIN_MIN_HEIGHT = 220;
+const CONTROL_WIN_MARGIN     = 20;
+
+const CONFIRM_WIN_WIDTH  = 360;
+const CONFIRM_WIN_HEIGHT = 140;
+
+const WS_RECONNECT_INITIAL_MS = 500;
+const WS_RECONNECT_MAX_MS     = 8000;
 
 let overlayWin = null;
 let controlWin = null;
@@ -50,16 +63,16 @@ function createControlWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { x, y, width, height } = primaryDisplay.workArea;
 
-  const initialWidth = Math.min(520, width - 40);
-  const initialHeight = 248;
+  const initialWidth = Math.min(CONTROL_WIN_MAX_WIDTH, width - 40);
+  const initialHeight = CONTROL_WIN_HEIGHT;
   const initialX = Math.round(x + (width - initialWidth) / 2);
-  const initialY = Math.round(y + height - initialHeight - 20);
+  const initialY = Math.round(y + height - initialHeight - CONTROL_WIN_MARGIN);
 
   controlWin = new BrowserWindow({
     width: initialWidth,
     height: initialHeight,
-    minWidth: 400,
-    minHeight: 220,
+    minWidth: CONTROL_WIN_MIN_WIDTH,
+    minHeight: CONTROL_WIN_MIN_HEIGHT,
     x: initialX,
     y: initialY,
     frame: false,
@@ -98,18 +111,15 @@ function createControlWindow() {
 function createConfirmWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { x, y, width, height } = primaryDisplay.workArea;
-  const popupWidth = 360;
-  const popupHeight = 140;
-
   confirmWin = new BrowserWindow({
-    width: popupWidth,
-    height: popupHeight,
-    minWidth: popupWidth,
-    minHeight: popupHeight,
-    maxWidth: popupWidth,
-    maxHeight: popupHeight,
-    x: Math.round(x + (width - popupWidth) / 2),
-    y: Math.round(y + (height - popupHeight) / 2),
+    width: CONFIRM_WIN_WIDTH,
+    height: CONFIRM_WIN_HEIGHT,
+    minWidth: CONFIRM_WIN_WIDTH,
+    minHeight: CONFIRM_WIN_HEIGHT,
+    maxWidth: CONFIRM_WIN_WIDTH,
+    maxHeight: CONFIRM_WIN_HEIGHT,
+    x: Math.round(x + (width - CONFIRM_WIN_WIDTH) / 2),
+    y: Math.round(y + (height - CONFIRM_WIN_HEIGHT) / 2),
     frame: false,
     transparent: true,
     resizable: false,
@@ -204,8 +214,8 @@ function sendToRenderers(channel, payload) {
 
 function connectWebSocket() {
   const url = `ws://localhost:${WS_PORT}`;
-  let retryDelay = 500;
-  const maxDelay = 8000;
+  let retryDelay = WS_RECONNECT_INITIAL_MS;
+  const maxDelay = WS_RECONNECT_MAX_MS;
 
   function attempt() {
     const ws = new WebSocket(url);
@@ -213,7 +223,7 @@ function connectWebSocket() {
     ws.on('open', () => {
       console.log('[Navi] WebSocket connected to Python backend');
       wsConnection = ws;
-      retryDelay = 500;
+      retryDelay = WS_RECONNECT_INITIAL_MS;
 
       const display = screen.getPrimaryDisplay();
       const { scaleFactor, bounds, workArea } = display;
