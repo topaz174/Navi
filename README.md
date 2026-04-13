@@ -390,3 +390,9 @@ The dominant latency source is the API call itself. Rate-limit backoff (HTTP 429
 - **Rate limits.** On the default Anthropic tier, sustained use hits 429s frequently. Each hit costs 15s. Upgrade your tier or add jitter/exponential backoff beyond the current flat 15s.
 - **Single monitor only.** `mss.monitors[1]` is the primary display. Multi-monitor support is out of scope for v0.
 - **`package.json` dev script uses an absolute Python path.** Update the `dev` script to use `python3` (or your venv's python) before sharing with others.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

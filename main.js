@@ -235,7 +235,15 @@ function connectWebSocket() {
       try {
         const parsed = JSON.parse(data.toString());
         const event = parsed?.event;
-        if (event === 'confirm_done') {
+        if (event === 'hide') {
+          for (const win of [overlayWin, controlWin]) {
+            if (win && !win.isDestroyed()) win.setContentProtection(true);
+          }
+        } else if (event === 'show') {
+          for (const win of [overlayWin, controlWin]) {
+            if (win && !win.isDestroyed()) win.setContentProtection(false);
+          }
+        } else if (event === 'confirm_done') {
           showConfirmWindow();
         } else if (['step', 'loading', 'done', 'error'].includes(event)) {
           hideConfirmWindow();

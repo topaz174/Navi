@@ -10,8 +10,6 @@ const tooltipText = document.getElementById('tooltip-text');
 const stepHud = document.getElementById('step-hud');
 const stepCounter = document.getElementById('step-counter');
 const stepHistory = document.getElementById('step-history');
-const stepAdvance = document.getElementById('step-advance');
-const stepAdvanceText = document.getElementById('step-advance-text');
 const loading = document.getElementById('loading');
 const loadingScanner = document.getElementById('loading-scanner');
 const completion = document.getElementById('completion');
@@ -147,18 +145,6 @@ function clearPendingStepRender() {
   }
 }
 
-function flashStepAdvance(text, duration = 820) {
-  if (!stepAdvance || !stepAdvanceText || !text) return;
-  stepAdvanceText.textContent = text;
-  stepAdvance.classList.remove('hidden', 'animate');
-  stepAdvance.offsetHeight;
-  stepAdvance.classList.add('animate');
-  window.setTimeout(() => {
-    stepAdvance.classList.add('hidden');
-    stepAdvance.classList.remove('animate');
-  }, duration);
-}
-
 function renderOverlayStep(screenBx, screenBy, x, y, w, h, instruction) {
   if (!(isOverlayWindow && boundingBox)) return;
 
@@ -204,7 +190,6 @@ function showStep(payload) {
 
   clearPendingStepRender();
   if (isOverlayWindow && step_num > 1) {
-    flashStepAdvance(`Step ${step_num} of ${total_steps}`);
     if (boundingBox) boundingBox.classList.add('transitioning');
     if (tooltip) tooltip.classList.add('hidden');
     pendingStepRender = setTimeout(() => {
@@ -222,7 +207,7 @@ function showStep(payload) {
   setHidden(stepHud, false);
   renderStepHistory();
   removeThinkingEntry();
-  appendChatEntry('assistant', `Step ${step_num} of ${total_steps}: ${instruction}`);
+  appendChatEntry('assistant', instruction);
   currentStepNum = step_num;
 
   setHidden(confirmDone, true);
@@ -232,6 +217,14 @@ function showStep(payload) {
 
 function toggleLoading(active) {
   clearPendingLoadingHide();
+
+  if (isControlWindow) {
+    removeThinkingEntry();
+    if (active) {
+      thinkingEntry = appendChatEntry('assistant', 'Thinking', { thinking: true });
+    }
+    return;
+  }
 
   if (loading) {
     if (active) {
@@ -250,7 +243,6 @@ function toggleLoading(active) {
         if (tooltip) {
           setHidden(tooltip, true);
         }
-        flashStepAdvance('Step complete', 900);
       }
     } else if (isOverlayWindow && loadingScanner) {
       pendingLoadingHide = setTimeout(() => {
@@ -299,13 +291,8 @@ function showError(message) {
   setHidden(errorDisplay, false);
 }
 
-function hideOverlay() {
-  document.body.style.opacity = '0';
-}
-
-function showOverlay() {
-  document.body.style.opacity = '1';
-}
+function hideOverlay() {}
+function showOverlay() {}
 
 function submitGoal() {
   if (!goalInput) return;
@@ -330,7 +317,6 @@ function resetToIdle() {
   setHidden(activeGoal, true);
   setHidden(boundingBox, true);
   setHidden(tooltip, true);
-  setHidden(stepAdvance, true);
   setHidden(stepHud, true);
   setHidden(loading, true);
   setHidden(confirmDone, true);

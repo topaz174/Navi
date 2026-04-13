@@ -1,7 +1,7 @@
 WS_PORT = 7373
 
-CAPTURE_PULSE_MS = 1000
-OVERLAY_HIDE_SETTLE_MS = 20
+CAPTURE_PULSE_MS = 1500
+OVERLAY_HIDE_SETTLE_MS = 50  # time for setContentProtection(true) to propagate to CGWindowListCreateImage
 
 WS_EVENTS = {
     "dpr": "dpr",

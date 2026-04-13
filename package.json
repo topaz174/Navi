@@ -1,6 +1,7 @@
 {
   "name": "navi",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "AI overlay that shows you where to click instead of clicking for you",
   "main": "main.js",
   "scripts": {

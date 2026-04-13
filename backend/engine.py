@@ -12,7 +12,7 @@ from backend.api import (
 from backend.click_monitor import ClickMonitor
 from backend.diff_monitor import DiffMonitor
 from backend.perf_log import PerfSession
-from backend.screenshot import capture_and_encode, capture_raw_array, capture_with_overlay_hidden
+from backend.screenshot import capture_raw_array, capture_with_overlay_hidden
 from shared.constants import WS_EVENTS
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,8 @@ GOAL_CHECK = "GOAL_CHECK"
 DONE = "DONE"
 
 CLICK_ACTIONS = {"click", "left_click", "right_click", "middle_click", "double_click"}
+
+_MAX_REPLANS = 3  # cap on how many times the engine may re-plan after a NOT_ACHIEVED goal check
 
 
 class NaviEngine:
@@ -51,6 +53,7 @@ class NaviEngine:
         self._click_monitor: ClickMonitor | None = None
         self._cancelled = False
         self._last_claude_call_time = 0.0
+        self._replan_count = 0
         self._perf: PerfSession | None = None
 
     def set_dpr(self, dpr: float, logical_w: int = 0, logical_h: int = 0, work_area_y: int = 0):
@@ -70,6 +73,7 @@ class NaviEngine:
         self._messages = []
         self._cancelled = False
         self._last_claude_call_time = 0.0
+        self._replan_count = 0
         self._perf = PerfSession(goal)
 
         await self._transition(PLANNING)
@@ -197,6 +201,36 @@ class NaviEngine:
         })
         await self._ws_send(WS_EVENTS["loading"], {"active": False})
         await self._transition(DISPLAYING)
+
+    def _replace_remaining_plan(self, remaining_plan: dict | None) -> None:
+        if not remaining_plan:
+            return
+        raw_steps = remaining_plan.get("steps", [])
+        if not isinstance(raw_steps, list) or not raw_steps:
+            return
+
+        prefix = list(self._steps[:self._current_step])
+        normalized_suffix = []
+        for offset, step in enumerate(raw_steps, start=1):
+            if not isinstance(step, dict):
+                continue
+            normalized = dict(step)
+            normalized["n"] = self._current_step + offset
+            normalized_suffix.append(normalized)
+
+        if not normalized_suffix:
+            return
+
+        self._steps = prefix + normalized_suffix
+        self._plan = {"steps": self._steps}
+        self._total_steps = len(self._steps)
+        if self._perf:
+            self._perf.event(
+                "00_timeline.txt",
+                "replace remaining plan from validation",
+                completed_prefix=self._current_step,
+                new_total_steps=self._total_steps,
+            )
 
     def _apply_result(self, result: dict):
         """Translate API-space result into logical CSS pixels for the renderer.
@@ -427,19 +461,21 @@ class NaviEngine:
         self._scaled_w = sw
         self._scaled_h = sh
 
-        current_instruction = ""
-        if 0 < self._current_step <= len(self._steps):
-            current_instruction = self._steps[self._current_step - 1].get("instruction", "")
+        # Use the instruction actually shown to the user, not the pre-planned one.
+        current_instruction = self._display_instruction
 
-        # Validation uses no transcript so the request always starts with a user turn (screenshot).
-        # Re-enable history after fixing grounding to store user+assistant pairs: self._messages,
+        # Only pass completed steps to validation — hiding future plan steps prevents the
+        # model from anchoring on them and forces it to reason from actual screen state.
+        completed_steps = [s for s in (self._plan or {}).get("steps", []) if s.get("n", 0) <= self._current_step]
+        validation_plan = {**(self._plan or {}), "steps": completed_steps}
+
         if self._perf:
             self._perf.event(vf, "asyncio.to_thread(validation_call) start")
         result = await asyncio.to_thread(
             validation_call,
             b64,
             self._goal,
-            self._plan,
+            validation_plan,
             self._current_step,
             current_instruction,
             [],
@@ -457,6 +493,7 @@ class NaviEngine:
         })
 
         status = result.get("status", "confirmed")
+        self._replace_remaining_plan(result.get("remaining_plan"))
         await self._ws_send(WS_EVENTS["loading"], {"active": False})
 
         if status == "complete":
@@ -474,25 +511,33 @@ class NaviEngine:
             self._apply_result(result)
             await self._transition(DISPLAYING)
         else:
-            # confirmed — advance to next planned step
+            # confirmed — advance
             self._current_step += 1
             self._apply_result(result)
-            idx = self._current_step - 1
-            if 0 <= idx < len(self._steps):
-                self._display_instruction = self._steps[idx]["instruction"]
-            await self._transition(DISPLAYING)
+            # Validation's instruction is grounded in the actual current screen; only fall
+            # back to the pre-planned instruction when validation returned none.
+            if not self._display_instruction:
+                idx = self._current_step - 1
+                if 0 <= idx < len(self._steps):
+                    self._display_instruction = self._steps[idx]["instruction"]
+            # When the pre-generated plan is exhausted, verify the goal before continuing.
+            if self._current_step > self._total_steps:
+                await self._transition(GOAL_CHECK)
+            else:
+                await self._transition(DISPLAYING)
 
     async def _do_goal_check(self):
+        gc_file = "06_goal_check.txt"
         if self._perf:
-            self._perf.event("06_goal_check.txt", "state _do_goal_check: WS loading=true")
+            self._perf.event(gc_file, "state _do_goal_check: WS loading=true")
         await self._ws_send(WS_EVENTS["loading"], {"active": True})
 
+        # Use the overlay-hidden capture so the Navi windows don't pollute the goal check.
+        b64, gc_w, gc_h, gc_scale = await capture_with_overlay_hidden(
+            self._ws_send, self._dpr, perf=self._perf, phase_file=gc_file,
+        )
         if self._perf:
-            self._perf.event("06_goal_check.txt", "capture_and_encode (thread) for goal check")
-        t0 = time.perf_counter()
-        b64, _, _, _ = await asyncio.to_thread(capture_and_encode, self._dpr)
-        if self._perf:
-            self._perf.event("06_goal_check.txt", "capture_and_encode done", ms=round((time.perf_counter() - t0) * 1000, 1))
+            self._perf.event(gc_file, "capture done, running goal_check_call")
         result = await asyncio.to_thread(goal_check_call, b64, self._goal, self._perf)
 
         await self._ws_send(WS_EVENTS["loading"], {"active": False})
@@ -501,12 +546,50 @@ class NaviEngine:
             await self._ws_send(WS_EVENTS["confirm_done"], {"reasoning": result["reasoning"]})
             # Wait for user_confirmed_done or user_continue event
         else:
-            # Not achieved — resume validation with context
-            self._messages.append({
-                "role": "user",
-                "content": [{
-                    "type": "text",
-                    "text": f"Goal check judge says NOT_ACHIEVED: {result['reasoning']}. Continue from the current screen state.",
-                }],
-            })
-            await self._transition(VALIDATING)
+            # Goal not yet achieved — the plan was incomplete or a step was missed.
+            # Re-plan from the current screen state so the new plan reflects what is
+            # actually on screen right now (e.g. an open file picker, a missing step, etc.)
+            if self._replan_count >= _MAX_REPLANS:
+                await self._ws_send(WS_EVENTS["error"], {
+                    "message": f"Could not complete goal after {_MAX_REPLANS} re-plans. {result['reasoning']}",
+                })
+                self._state = IDLE
+                return
+
+            self._replan_count += 1
+            if self._perf:
+                self._perf.event(gc_file, f"NOT_ACHIEVED — re-plan #{self._replan_count}: {result['reasoning']}")
+
+            await self._ws_send(WS_EVENTS["loading"], {"active": True})
+            plan, grounding = await asyncio.to_thread(
+                planning_and_grounding_call,
+                b64,  # reuse the already-captured clean screenshot
+                self._goal,
+                gc_w,
+                gc_h,
+                self._dpr,
+                self._perf,
+            )
+            self._last_claude_call_time = time.time()
+
+            self._plan = plan
+            self._steps = plan.get("steps", [])
+            self._total_steps = len(self._steps)
+            self._scaled_w = gc_w
+            self._scaled_h = gc_h
+            self._scale_factor = gc_scale
+            self._messages = []
+
+            if not self._steps:
+                await self._ws_send(WS_EVENTS["error"], {"message": "Re-plan produced no steps"})
+                self._state = IDLE
+                return
+
+            self._current_step = 1
+            self._apply_result(grounding)
+            self._display_instruction = self._steps[0]["instruction"]
+
+            if self._perf:
+                self._perf.event(gc_file, f"re-plan #{self._replan_count} done: {self._total_steps} steps")
+            await self._ws_send(WS_EVENTS["loading"], {"active": False})
+            await self._transition(DISPLAYING)

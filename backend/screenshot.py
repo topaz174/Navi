@@ -67,18 +67,16 @@ async def capture_with_overlay_hidden(
     perf=None,
     phase_file: str = "capture.txt",
 ) -> tuple[str, int, int, float]:
-    """Hide overlay, capture screenshot, show overlay again."""
+    """Flip setContentProtection on (via WS → Electron main process) so mss/CGWindowListCreateImage
+    skips the overlay, capture, then flip protection back off so screen recordings stay visible."""
     from shared.constants import CAPTURE_PULSE_MS, OVERLAY_HIDE_SETTLE_MS, WS_EVENTS
 
     if perf:
-        perf.event(phase_file, "WS hide overlay (Electron)")
         perf.event(phase_file, f"asyncio.sleep {CAPTURE_PULSE_MS}ms (capture pulse)")
     await asyncio.sleep(CAPTURE_PULSE_MS / 1000.0)
     await ws_send(WS_EVENTS["hide"], {})
     try:
-        if perf:
-            perf.event(phase_file, f"asyncio.sleep {OVERLAY_HIDE_SETTLE_MS}ms (overlay paint)")
-        await asyncio.sleep(OVERLAY_HIDE_SETTLE_MS / 1000.0)  # wait ~1 frame for overlay to hide
+        await asyncio.sleep(OVERLAY_HIDE_SETTLE_MS / 1000.0)
         if perf:
             perf.event(phase_file, "capture_and_encode (thread pool) start")
         t0 = time.perf_counter()
@@ -88,5 +86,3 @@ async def capture_with_overlay_hidden(
         return out
     finally:
         await ws_send(WS_EVENTS["show"], {})
-        if perf:
-            perf.event(phase_file, "WS show overlay (Electron)")
