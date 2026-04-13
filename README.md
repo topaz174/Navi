@@ -6,18 +6,9 @@ Navi is a macOS desktop app that takes a natural language goal — typed or spok
 
 <table>
   <tr>
-    <td align="center">
-      <img src="https://github.com" width="300" alt="Step 1: Inputting Goal">
-      <br><b>Step 1: Input Goal</b>
-    </td>
-    <td align="center">
-      <img src="REPLACE_WITH_YOUR_BLURRED_IMAGE_URL" width="300" alt="Step 2: AI Analyzing Screen">
-      <br><b>Step 2: Navi Scans Files</b>
-    </td>
-    <td align="center">
-      <img src="https://github.com" width="300" alt="Step 3: Action Taken">
-      <br><b>Step 3: Task Complete</b>
-    </td>
+    <td><img src="https://github.com/user-attachments/assets/4a04685c-da58-4d13-aec0-4d3ca9e3bfa4" width="300" alt="Step 1"></td>
+    <td><img src="https://github.com/user-attachments/assets/252f7d58-ee11-4080-b697-587a9ebc2ec1" width="300" alt="Step 2"></td>
+    <td><img src="https://github.com/user-attachments/assets/25dcc195-ea2e-4d62-aa70-e28cd6903b26" width="300" alt="Step 3"></td>
   </tr>
 </table>
 
